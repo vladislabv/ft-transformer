@@ -26,7 +26,7 @@ keywords = [
     "tabular data",
 ]
 license = { file = "LICENSE" }
-name = "rtdl_revisiting_models"
+name = "ft_transformer"
 requires-python = ">=3.8"
 
 [project.urls]
@@ -37,7 +37,7 @@ Documentation = "https://github.com/yandex-research/tabular-dl-revisiting-models
 skip_string_normalization = true
 
 [tool.flit.module]
-name = "rtdl_revisiting_models"
+name = "ft_transformer"
 
 [tool.isort]
 profile = "black"
