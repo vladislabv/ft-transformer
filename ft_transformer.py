@@ -3,7 +3,6 @@
 __version__ = '0.0.2'
 
 __all__ = [
-    'LinearEmbeddings',
     'CategoricalEmbeddings',
     'MultiheadAttention',
     'FTTransformerBackbone',
@@ -17,6 +16,7 @@ import warnings
 from collections import OrderedDict
 from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, cast
 
+import rtdl_num_embeddings
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,61 +25,15 @@ from torch import Tensor
 from torch.nn.parameter import Parameter
 
 _INTERNAL_ERROR = 'Internal error'
+_NumEmbeddings = Union[
+    rtdl_num_embeddings.LinearReLUEmbeddings,
+    rtdl_num_embeddings.PiecewiseLinearEmbeddings,
+    rtdl_num_embeddings.PeriodicEmbeddings,
+]
 
 
 def _named_sequential(*modules) -> nn.Sequential:
     return nn.Sequential(OrderedDict(modules))
-
-
-class LinearEmbeddings(nn.Module):
-    """Linear embeddings for continuous features.
-
-    **Shape**
-
-    - Input: `(*, n_features)`
-    - Output: `(*, n_features, d_embedding)`
-
-    **Examples**
-
-    >>> batch_size = 2
-    >>> n_cont_features = 3
-    >>> x = torch.randn(batch_size, n_cont_features)
-    >>> d_embedding = 4
-    >>> m = LinearEmbeddings(n_cont_features, d_embedding)
-    >>> m(x).shape
-    torch.Size([2, 3, 4])
-    """
-
-    def __init__(self, n_features: int, d_embedding: int) -> None:
-        """
-        Args:
-            n_features: the number of continous features.
-            d_embedding: the embedding size.
-        """
-        if n_features <= 0:
-            raise ValueError(f'n_features must be positive, however: {n_features=}')
-        if d_embedding <= 0:
-            raise ValueError(f'd_embedding must be positive, however: {d_embedding=}')
-
-        super().__init__()
-        self.weight = Parameter(torch.empty(n_features, d_embedding))
-        self.bias = Parameter(torch.empty(n_features, d_embedding))
-        self.reset_parameters()
-
-    def reset_parameters(self) -> None:
-        d_rqsrt = self.weight.shape[1] ** -0.5
-        nn.init.uniform_(self.weight, -d_rqsrt, d_rqsrt)
-        nn.init.uniform_(self.bias, -d_rqsrt, d_rqsrt)
-
-    def forward(self, x: Tensor) -> Tensor:
-        if x.ndim < 2:
-            raise ValueError(
-                f'The input must have at least two dimensions, however: {x.ndim=}'
-            )
-
-        x = x[..., None] * self.weight
-        x = x + self.bias[None]
-        return x
 
 
 class CategoricalEmbeddings(nn.Module):
@@ -571,6 +525,7 @@ class FTTransformer(nn.Module):
         n_cont_features: int,
         cat_cardinalities: List[int],
         _is_default: bool = False,
+        num_embeddings: Optional[_NumEmbeddings] = None,
         **backbone_kwargs,
     ) -> None:
         """
@@ -596,13 +551,34 @@ class FTTransformer(nn.Module):
                 ' (the number of tokens will be inferred automatically)'
             )
 
+        if num_embeddings is not None:
+            # Unknown embedding types can result in all kinds of weird things,
+            # so checking the type explicitly.
+            if not isinstance(num_embeddings, typing.get_args(_NumEmbeddings)):
+                raise TypeError(
+                    f'num_embeddings of the type {type(num_embeddings)} is not'
+                    ' supported'
+                )
+            if (
+                isinstance(
+                    num_embeddings, rtdl_num_embeddings.PiecewiseLinearEmbeddings
+                )
+                and num_embeddings.linear0 is None
+            ):
+                raise ValueError(
+                    'When using PiecewiseLinearEmbeddings as num_embeddings,'
+                    ' set the version argument to "B":'
+                    '\nnum_embeddings = PiecewiseLinearEmbeddings(..., version="B")'
+                )
+
         super().__init__()
         d_block: int = backbone_kwargs['d_block']
         self.cls_embedding = _CLSEmbedding(d_block)
 
         # >>> Feature embeddings (Figure 2a in the paper).
+        # Now integrated with rtdl_num_embeddings package.
         self.cont_embeddings = (
-            LinearEmbeddings(n_cont_features, d_block) if n_cont_features > 0 else None
+            num_embeddings if n_cont_features > 0 else None
         )
         self.cat_embeddings = (
             CategoricalEmbeddings(cat_cardinalities, d_block, True)
