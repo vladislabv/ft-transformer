@@ -1,4 +1,4 @@
-"""Revisiting Deep Learning Models for Tabular Data."""
+"""Revisiting Deep Learning Models for Tabular Data. Focus on FT-Transformer."""
 
 __version__ = '0.0.2'
 
@@ -14,7 +14,7 @@ import math
 import typing
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, cast
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union, cast
 
 import rtdl_num_embeddings
 import torch
