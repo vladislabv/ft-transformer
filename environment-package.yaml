@@ -1,4 +1,4 @@
-name: rtdl-revisiting-models-package
+name: ft-transformer
 channels:
 - https://conda.anaconda.org/conda-forge
 - nodefaults
